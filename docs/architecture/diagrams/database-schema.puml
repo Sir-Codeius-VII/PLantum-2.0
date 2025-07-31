@@ -1,0 +1,84 @@
+@startuml Database Schema
+
+!define TABLE(name,desc) class name as "desc" << (T,#FFAAAA) >>
+!define PRIMARY_KEY(key) <b>key</b>
+!define FOREIGN_KEY(key) <i>key</i>
+
+skinparam class {
+    BackgroundColor White
+    ArrowColor Black
+    BorderColor Black
+}
+
+' Tables
+TABLE(User, "User") {
+    PRIMARY_KEY(id): UUID
+    email: String
+    password: String
+    role: String
+    name: String
+    status: String
+    createdAt: DateTime
+    updatedAt: DateTime
+}
+
+TABLE(Business, "Business") {
+    PRIMARY_KEY(id): UUID
+    FOREIGN_KEY(userId): UUID
+    name: String
+    email: String
+    status: String
+    balance: Decimal
+    settings: Json
+    createdAt: DateTime
+    updatedAt: DateTime
+}
+
+TABLE(Transaction, "Transaction") {
+    PRIMARY_KEY(id): UUID
+    FOREIGN_KEY(businessId): UUID
+    type: String
+    amount: Decimal
+    currency: String
+    status: String
+    metadata: Json
+    createdAt: DateTime
+    updatedAt: DateTime
+}
+
+TABLE(Withdrawal, "Withdrawal") {
+    PRIMARY_KEY(id): UUID
+    FOREIGN_KEY(businessId): UUID
+    amount: Decimal
+    currency: String
+    status: String
+    createdAt: DateTime
+    updatedAt: DateTime
+}
+
+TABLE(PaymentMethod, "PaymentMethod") {
+    PRIMARY_KEY(id): UUID
+    FOREIGN_KEY(businessId): UUID
+    type: String
+    provider: String
+    details: Json
+    isDefault: Boolean
+    createdAt: DateTime
+    updatedAt: DateTime
+}
+
+TABLE(Settings, "Settings") {
+    PRIMARY_KEY(id): UUID
+    key: String
+    value: Json
+    createdAt: DateTime
+    updatedAt: DateTime
+}
+
+' Relationships
+User "1" -- "0..*" Business
+Business "1" -- "0..*" Transaction
+Business "1" -- "0..*" Withdrawal
+Business "1" -- "0..*" PaymentMethod
+
+@enduml 

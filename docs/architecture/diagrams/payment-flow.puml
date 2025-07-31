@@ -1,0 +1,117 @@
+@startuml Payment Processing Flow
+
+skinparam backgroundColor white
+skinparam handwritten false
+
+actor Customer
+participant "Frontend" as FE
+participant "API Routes" as API
+participant "Payment Service" as PS
+participant "Stripe" as Stripe
+participant "PayFast" as PayFast
+database "Database" as DB
+
+== Payment Initiation ==
+
+Customer -> FE: Select payment method
+activate FE
+
+FE -> API: POST /api/payments/process
+activate API
+
+API -> PS: Create payment intent
+activate PS
+
+PS -> DB: Create transaction record
+activate DB
+DB --> PS: Transaction created
+deactivate DB
+
+alt Stripe Payment
+    PS -> Stripe: Create payment intent
+    activate Stripe
+    Stripe --> PS: Payment intent
+    deactivate Stripe
+else PayFast Payment
+    PS -> PayFast: Create payment
+    activate PayFast
+    PayFast --> PS: Payment URL
+    deactivate PayFast
+end
+
+PS --> API: Payment details
+deactivate PS
+
+API --> FE: Payment information
+deactivate API
+
+== Payment Processing ==
+
+alt Stripe Payment
+    Customer -> FE: Enter card details
+    FE -> Stripe: Process payment
+    activate Stripe
+    Stripe --> FE: Payment result
+    deactivate Stripe
+else PayFast Payment
+    Customer -> PayFast: Complete payment
+    activate PayFast
+    PayFast --> PS: Payment notification
+    deactivate PayFast
+end
+
+FE -> API: Update payment status
+activate API
+
+API -> PS: Process payment result
+activate PS
+
+PS -> DB: Update transaction
+activate DB
+DB --> PS: Transaction updated
+deactivate DB
+
+PS --> API: Payment result
+deactivate PS
+
+API --> FE: Payment confirmation
+deactivate API
+
+== Withdrawal Process ==
+
+Customer -> FE: Request withdrawal
+activate FE
+
+FE -> API: POST /api/payments/withdraw
+activate API
+
+API -> PS: Process withdrawal
+activate PS
+
+PS -> DB: Create withdrawal record
+activate DB
+DB --> PS: Withdrawal created
+deactivate DB
+
+alt Stripe Withdrawal
+    PS -> Stripe: Initiate transfer
+    activate Stripe
+    Stripe --> PS: Transfer initiated
+    deactivate Stripe
+else PayFast Withdrawal
+    PS -> PayFast: Initiate payout
+    activate PayFast
+    PayFast --> PS: Payout initiated
+    deactivate PayFast
+end
+
+PS --> API: Withdrawal status
+deactivate PS
+
+API --> FE: Withdrawal confirmation
+deactivate API
+
+FE --> Customer: Withdrawal status
+deactivate FE
+
+@enduml 

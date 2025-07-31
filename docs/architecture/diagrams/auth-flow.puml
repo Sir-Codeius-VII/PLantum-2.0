@@ -1,0 +1,89 @@
+@startuml Authentication Flow
+
+skinparam backgroundColor white
+skinparam handwritten false
+
+actor User
+participant "Frontend" as FE
+participant "API Routes" as API
+participant "Middleware" as MW
+participant "Supabase Auth" as Auth
+database "Database" as DB
+
+== Login Flow ==
+
+User -> FE: Enter credentials
+activate FE
+
+FE -> API: POST /api/auth/login
+activate API
+
+API -> Auth: Verify credentials
+activate Auth
+
+Auth -> DB: Check user
+activate DB
+DB --> Auth: User data
+deactivate DB
+
+Auth --> API: JWT token
+deactivate Auth
+
+API --> FE: User data + token
+deactivate API
+
+FE -> FE: Store token
+FE --> User: Redirect to dashboard
+deactivate FE
+
+== Protected Route Access ==
+
+User -> FE: Access protected route
+activate FE
+
+FE -> API: Request with token
+activate API
+
+API -> MW: Check token
+activate MW
+
+MW -> Auth: Verify token
+activate Auth
+Auth --> MW: Token valid
+deactivate Auth
+
+MW --> API: Authorized
+deactivate MW
+
+API -> DB: Fetch data
+activate DB
+DB --> API: Requested data
+deactivate DB
+
+API --> FE: Response data
+deactivate API
+
+FE --> User: Display data
+deactivate FE
+
+== Logout Flow ==
+
+User -> FE: Click logout
+activate FE
+
+FE -> FE: Clear token
+FE -> API: POST /api/auth/logout
+activate API
+
+API -> Auth: Invalidate token
+activate Auth
+Auth --> API: Token invalidated
+deactivate Auth
+
+API --> FE: Logout successful
+deactivate API
+
+FE --> User: Redirect to login
+deactivate FE
+
+@enduml 

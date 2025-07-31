@@ -1,0 +1,72 @@
+@startuml System Architecture
+
+!define RECTANGLE class
+
+skinparam componentStyle rectangle
+skinparam backgroundColor white
+skinparam handwritten false
+
+' Components
+package "Frontend" {
+  [Next.js App] as NextApp
+  [React Components] as Components
+  [TypeScript] as TS
+  [Tailwind CSS] as Tailwind
+}
+
+package "Backend" {
+  [API Routes] as API
+  [Middleware] as Middleware
+  [Authentication] as Auth
+  [Payment Processing] as Payments
+}
+
+package "Database" {
+  [Supabase] as Supabase
+  [PostgreSQL] as Postgres
+  [Prisma ORM] as Prisma
+}
+
+package "External Services" {
+  [Stripe] as Stripe
+  [PayFast] as PayFast
+  [Email Service] as Email
+}
+
+' Relationships
+NextApp --> Components
+Components --> TS
+Components --> Tailwind
+
+NextApp --> API
+API --> Middleware
+API --> Auth
+API --> Payments
+
+Auth --> Supabase
+Payments --> Stripe
+Payments --> PayFast
+Payments --> Email
+
+Supabase --> Postgres
+API --> Prisma
+Prisma --> Postgres
+
+' Notes
+note right of NextApp
+  Next.js 14 with App Router
+end note
+
+note right of API
+  RESTful API Routes
+end note
+
+note right of Auth
+  Supabase Auth + JWT
+end note
+
+note right of Payments
+  Multiple Payment Providers
+end note
+
+@enduml 
