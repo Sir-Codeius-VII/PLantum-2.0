@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { Database } from '@/types/database'
+import { shouldUseMockAuth } from '@/lib/mock-auth'
 
 const supabase = createClient<Database>(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -60,6 +61,18 @@ export async function POST(request: Request) {
         { error: 'Post ID and User ID are required' },
         { status: 400 }
       )
+    }
+
+    if (shouldUseMockAuth()) {
+      // Mock like creation
+      const mockLike = {
+        id: `mock-like-${Date.now()}`,
+        post_id: postId,
+        user_id: userId,
+        created_at: new Date().toISOString(),
+      }
+      console.log('Mock like created:', mockLike)
+      return NextResponse.json(mockLike, { status: 201 })
     }
 
     // Check if like already exists

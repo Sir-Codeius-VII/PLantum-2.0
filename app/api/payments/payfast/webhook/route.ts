@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createPayFast } from '@/lib/payfast';
-import { prisma } from '@/lib/prisma';
+import { createClient } from '@supabase/supabase-js';
 
 // Initialize PayFast with configuration
 const payfast = createPayFast({
@@ -29,12 +29,19 @@ export async function POST(req: NextRequest) {
     const businessId = data.custom_str1;
     const userId = data.custom_str2;
 
-    // Get payment record
-    const payment = await prisma.payment.findUnique({
-      where: { id: paymentId },
-    });
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
 
-    if (!payment) {
+    // Get payment record
+    const { data: payment, error: paymentError } = await supabase
+      .from('payments')
+      .select('*')
+      .eq('id', paymentId)
+      .single()
+
+    if (paymentError || !payment) {
       console.error('Payment not found:', paymentId);
       return NextResponse.json(
         { error: 'Payment not found' },
@@ -44,34 +51,34 @@ export async function POST(req: NextRequest) {
 
     // Update payment status
     const status = paymentStatus === 'COMPLETE' ? 'completed' : 'failed';
-    await prisma.payment.update({
-      where: { id: paymentId },
-      data: {
+    await supabase
+      .from('payments')
+      .update({
         status,
-        payfastPaymentId: data.pf_payment_id,
-        payfastSignature: data.signature,
-        payfastTimestamp: data.payment_date,
-        payfastResponse: data,
-      },
-    });
+        payfast_payment_id: data.pf_payment_id,
+        payfast_signature: data.signature,
+        payfast_timestamp: data.payment_date,
+        payfast_response: data,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', paymentId)
 
     // If payment is successful, create a transaction record
     if (status === 'completed') {
-      await prisma.transaction.create({
-        data: {
-          businessId,
-          userId,
-          type: 'payment',
-          amount: payment.amount,
-          currency: payment.currency,
-          status: 'completed',
-          description: `Payment for ${payment.payfastResponse?.item_name}`,
-          metadata: {
-            paymentId,
-            payfastPaymentId: data.pf_payment_id,
-          },
+      await supabase.from('transactions').insert({
+        business_id: businessId,
+        user_id: userId,
+        type: 'payment',
+        amount: payment.amount,
+        currency: payment.currency,
+        status: 'completed',
+        description: `Payment for ${payment?.payfast_response?.item_name || ''}`,
+        metadata: {
+          paymentId,
+          payfastPaymentId: data.pf_payment_id,
         },
-      });
+        created_at: new Date().toISOString(),
+      })
     }
 
     return NextResponse.json({ success: true });

@@ -30,7 +30,7 @@ interface PaymentButtonProps {
   onError?: (error: PaymentError) => void
 }
 
-type PaymentProvider = 'payfast' | 'stripe' | 'bank'
+type PaymentProvider = 'payfast' | 'bank'
 
 export function PaymentButton({
   amount,
@@ -94,8 +94,6 @@ export function PaymentButton({
     switch (provider) {
       case 'payfast':
         return <Wallet className="h-4 w-4" />
-      case 'stripe':
-        return <CreditCard className="h-4 w-4" />
       case 'bank':
         return <Bank className="h-4 w-4" />
     }
@@ -132,13 +130,7 @@ export function PaymentButton({
                 <span>PayFast</span>
               </Label>
             </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="stripe" id="stripe" />
-              <Label htmlFor="stripe" className="flex items-center space-x-2">
-                {getProviderIcon('stripe')}
-                <span>Stripe</span>
-              </Label>
-            </div>
+            
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="bank" id="bank" />
               <Label htmlFor="bank" className="flex items-center space-x-2">

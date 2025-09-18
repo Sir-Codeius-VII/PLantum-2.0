@@ -1,176 +1,193 @@
 import { NextResponse } from 'next/server'
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
+import { createClient } from '@supabase/supabase-js'
 import { PaymentService } from '@/lib/payment'
-import { EmailService } from '@/lib/email-service'
-import { handlePaymentError } from '@/lib/error-handling'
-import { rateLimit } from '@/lib/rate-limit'
-import { fraudDetectionService } from '@/lib/fraud-detection'
-
-const paymentService = new PaymentService()
-const emailService = EmailService.getInstance()
+import { createPaymentSchema } from '@/lib/validations/payment'
+import { validateRequest, createValidationErrorResponse, createErrorResponse, createSuccessResponse, createRateLimitResponse } from '@/lib/utils/validation'
+import { paymentRateLimiter, getClientIdentifier } from '@/lib/utils/rate-limit'
+import { shouldUseMockAuth } from '@/lib/mock-auth'
 
 export async function POST(request: Request) {
   try {
     // Apply rate limiting
-    const rateLimitResult = await rateLimit(request)
-    if (!rateLimitResult.success) {
-      return NextResponse.json(
-        { error: 'Too many requests' },
-        { 
-          status: 429,
-          headers: {
-            'X-RateLimit-Limit': rateLimitResult.limit.toString(),
-            'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
-            'X-RateLimit-Reset': rateLimitResult.reset.toString(),
-          }
-        }
-      )
+    const clientId = getClientIdentifier(request)
+    const rateLimit = paymentRateLimiter.isRateLimited(clientId)
+    
+    if (rateLimit.limited) {
+      return createRateLimitResponse(100, rateLimit.remaining, rateLimit.reset)
     }
 
-    const supabase = createRouteHandlerClient({ cookies })
+    // Check if environment variables are set
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      console.error('Missing Supabase environment variables');
+      return createErrorResponse('Server configuration error', 500, 'CONFIG_ERROR');
+    }
+
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    )
+
     const body = await request.json()
 
-    // Validate required fields
-    if (!body.amount || !body.itemName) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      )
+    // Validate request body
+    const validation = validateRequest(createPaymentSchema, body)
+    if (!validation.success) {
+      return createValidationErrorResponse(validation.error)
     }
 
-    // Validate amount
-    if (body.amount <= 0) {
-      return NextResponse.json(
-        { error: 'Invalid amount' },
-        { status: 400 }
-      )
+    const { amount, itemName, currency, paymentProvider } = validation.data
+
+    // Get user profile from auth header
+    const authHeader = request.headers.get('authorization')
+    if (!authHeader) {
+      return createErrorResponse('Authorization header required', 401, 'UNAUTHORIZED')
+    }
+
+    // Extract user ID from token
+    const token = authHeader.replace('Bearer ', '')
+    
+    let user
+    if (shouldUseMockAuth()) {
+      // Mock auth validation
+      if (token === 'mock-token') {
+        user = { id: 'mock-user-1', email: 'test@example.com' }
+      } else {
+        return createErrorResponse('Invalid token', 401, 'INVALID_TOKEN')
+      }
+    } else {
+      // Real Supabase auth validation
+      const { data: { user: supabaseUser }, error: authError } = await supabase.auth.getUser(token)
+      if (authError || !supabaseUser) {
+        return createErrorResponse('Invalid token', 401, 'INVALID_TOKEN')
+      }
+      user = supabaseUser
     }
 
     // Get user profile
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('*')
-      .single()
+    let profile
+    if (shouldUseMockAuth()) {
+      // Mock profile
+      profile = {
+        id: 'mock-profile-1',
+        user_id: user.id,
+        name: 'Test User',
+        full_name: 'Test User',
+        company_name: 'Test Company',
+        role: 'startup'
+      }
+    } else {
+      // Real Supabase profile
+      const { data: supabaseProfile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single()
 
-    if (profileError || !profile) {
-      return NextResponse.json(
-        { error: 'User profile not found' },
-        { status: 404 }
-      )
+      if (profileError || !supabaseProfile) {
+        return createErrorResponse('User profile not found', 404, 'PROFILE_NOT_FOUND')
+      }
+      profile = supabaseProfile
     }
 
-    // Perform fraud check
-    const fraudCheck = await fraudDetectionService.checkPayment({
-      userId: profile.id,
-      amount: body.amount,
-      currency: body.currency || 'ZAR',
-      provider: body.provider || 'payfast',
-      ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
-      userAgent: request.headers.get('user-agent') || 'unknown',
-    })
-
-    // Log fraud check result
-    await supabase.from('security_logs').insert({
-      user_id: profile.id,
-      event_type: 'fraud_check',
-      details: {
-        risk_score: fraudCheck.riskScore,
-        risk_level: fraudCheck.riskLevel,
-        failed_checks: fraudCheck.failedChecks,
-      },
-      ip_address: request.headers.get('x-forwarded-for') || 'unknown',
-      user_agent: request.headers.get('user-agent') || 'unknown',
-    })
-
-    // Block high-risk payments
-    if (fraudCheck.riskLevel === 'high') {
-      return NextResponse.json(
-        { error: 'Payment rejected due to security concerns' },
-        { status: 403 }
-      )
-    }
-
-    // Create payment
+    // Create payment using PaymentService
+    const paymentService = new PaymentService()
     const payment = await paymentService.createPayment({
-      amount: body.amount,
-      itemName: body.itemName,
-      userId: profile.id,
-      currency: body.currency,
-      provider: body.provider,
+      amount,
+      itemName,
+      email: user.email || '',
+      name: profile.name || user.email || '',
+      returnUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/payments/success`,
+      cancelUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/payments/cancel`,
+      notifyUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/payments/webhook`,
+      currency,
+      paymentProvider
     })
 
     // Store payment in database
-    const { error: dbError } = await supabase
-      .from('payments')
-      .insert({
-        id: payment.id,
-        user_id: profile.id,
-        amount: payment.amount,
-        currency: payment.currency,
-        status: payment.status,
-        provider: payment.provider,
+    if (shouldUseMockAuth()) {
+      // Mock payment storage - just log it
+      console.log('Mock payment stored:', {
+        id: payment.paymentData.m_payment_id,
+        user_id: user.id,
+        amount,
+        currency,
+        status: 'pending',
+        provider: paymentProvider,
         payment_url: payment.paymentUrl,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        payment_data: payment.paymentData,
       })
+    } else {
+      // Real Supabase storage
+      const { error: dbError } = await supabase
+        .from('payments')
+        .insert({
+          id: payment.paymentData.m_payment_id,
+          user_id: user.id,
+          amount,
+          currency,
+          status: 'pending',
+          provider: paymentProvider,
+          payment_url: payment.paymentUrl,
+          payment_data: payment.paymentData,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
 
-    if (dbError) {
-      console.error('Error storing payment:', dbError)
-      return NextResponse.json(
-        { error: 'Failed to store payment' },
-        { status: 500 }
-      )
+      if (dbError) {
+        console.error('Error storing payment:', dbError)
+        return createErrorResponse('Failed to store payment', 500, 'DATABASE_ERROR')
+      }
     }
 
-    // Send payment confirmation email
-    await emailService.sendPaymentConfirmation(profile.id, {
-      ...payment,
-      user_name: profile.full_name || profile.email,
-    })
-
-    // Log payment creation
-    await supabase.from('security_logs').insert({
-      user_id: profile.id,
-      event_type: 'payment_created',
-      details: {
-        payment_id: payment.id,
-        amount: payment.amount,
-        currency: payment.currency,
-        provider: payment.provider,
-      },
-      ip_address: request.headers.get('x-forwarded-for') || 'unknown',
-      user_agent: request.headers.get('user-agent') || 'unknown',
-    })
-
-    return NextResponse.json({
-      success: true,
+    return createSuccessResponse({
       paymentUrl: payment.paymentUrl,
-      paymentId: payment.id,
+      paymentId: payment.paymentData.m_payment_id,
     })
   } catch (error) {
     console.error('Payment creation error:', error)
-    const paymentError = handlePaymentError(error)
-    return NextResponse.json(
-      { error: paymentError.message },
-      { status: paymentError.code }
+    return createErrorResponse(
+      error instanceof Error ? error.message : 'Internal server error',
+      500,
+      'INTERNAL_ERROR'
     )
   }
 }
 
 export async function GET(request: Request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    // Apply rate limiting
+    const clientId = getClientIdentifier(request)
+    const rateLimit = paymentRateLimiter.isRateLimited(clientId)
+    
+    if (rateLimit.limited) {
+      return createRateLimitResponse(100, rateLimit.remaining, rateLimit.reset)
+    }
+
+    // Check if environment variables are set
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      console.error('Missing Supabase environment variables');
+      return createErrorResponse('Server configuration error', 500, 'CONFIG_ERROR');
+    }
+
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    )
+
     const { searchParams } = new URL(request.url)
     const paymentId = searchParams.get('id')
 
-    // Get user session
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-    if (sessionError || !session) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
+    // Get user from auth header
+    const authHeader = request.headers.get('authorization')
+    if (!authHeader) {
+      return createErrorResponse('Authorization header required', 401, 'UNAUTHORIZED')
+    }
+
+    const token = authHeader.replace('Bearer ', '')
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+    
+    if (authError || !user) {
+      return createErrorResponse('Invalid token', 401, 'INVALID_TOKEN')
     }
 
     if (paymentId) {
@@ -182,44 +199,35 @@ export async function GET(request: Request) {
         .single()
 
       if (paymentError || !payment) {
-        return NextResponse.json(
-          { error: 'Payment not found' },
-          { status: 404 }
-        )
+        return createErrorResponse('Payment not found', 404, 'PAYMENT_NOT_FOUND')
       }
 
       // Check if user owns the payment
-      if (payment.user_id !== session.user.id) {
-        return NextResponse.json(
-          { error: 'Unauthorized' },
-          { status: 403 }
-        )
+      if (payment.user_id !== user.id) {
+        return createErrorResponse('Unauthorized', 403, 'FORBIDDEN')
       }
 
-      return NextResponse.json({ payment })
+      return createSuccessResponse({ payment })
     } else {
       // Get all payments for user
       const { data: payments, error: paymentsError } = await supabase
         .from('payments')
         .select('*')
-        .eq('user_id', session.user.id)
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false })
 
       if (paymentsError) {
-        return NextResponse.json(
-          { error: 'Failed to fetch payments' },
-          { status: 500 }
-        )
+        return createErrorResponse('Failed to fetch payments', 500, 'DATABASE_ERROR')
       }
 
-      return NextResponse.json({ payments })
+      return createSuccessResponse({ payments })
     }
   } catch (error) {
     console.error('Payment fetch error:', error)
-    const paymentError = handlePaymentError(error)
-    return NextResponse.json(
-      { error: paymentError.message },
-      { status: paymentError.code }
+    return createErrorResponse(
+      error instanceof Error ? error.message : 'Internal server error',
+      500,
+      'INTERNAL_ERROR'
     )
   }
-} 
+}

@@ -3,6 +3,7 @@
 import type React from "react"
 
 import { useState, useEffect, useRef } from "react"
+import { useRouter } from "next/navigation"
 import { Header } from "@/components/Header"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -1060,6 +1061,7 @@ const sortInvestors = (investors, sortBy) => {
 type Investor = (typeof investorData)[0]
 
 export default function InvestorsPage() {
+  const router = useRouter()
   // State for filters and view options
   const [filters, setFilters] = useState({
     type: "All Types",
@@ -1208,13 +1210,15 @@ export default function InvestorsPage() {
     if (activeCheckbox) activeCheckbox.checked = false
   }
 
-  // Track investor views
+  // Track investor views and navigate to profile
   const handleViewInvestor = (investor: Investor) => {
     setSelectedInvestor(investor)
     setAppUserMetrics((prev) => ({
       ...prev,
       investorViews: [...prev.investorViews.filter((i) => i.id !== investor.id), investor],
     }))
+    // Navigate to investor profile using Next.js router
+    router.push(`/investors/${investor.id}`)
   }
 
   // Toggle bookmark

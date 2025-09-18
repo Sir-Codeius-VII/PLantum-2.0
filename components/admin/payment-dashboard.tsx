@@ -97,7 +97,7 @@ export function PaymentDashboard() {
           paymentId,
           reason: 'Customer request'
         },
-        'stripe' // TODO: Get provider from payment details
+        'payfast'
       );
       loadData(); // Reload data after refund
     } catch (error) {

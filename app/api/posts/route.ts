@@ -3,6 +3,8 @@ import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { Database } from '@/types/database'
+import { createPostSchema, updatePostSchema, postQuerySchema } from '@/lib/validations/posts'
+import { validateRequest, createValidationErrorResponse, createErrorResponse, createSuccessResponse } from '@/lib/utils/validation'
 
 const supabase = createClient<Database>(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -28,14 +30,24 @@ export async function GET(request: Request) {
     } = await supabase.auth.getUser()
 
     if (!user) {
-      return new NextResponse('Unauthorized', { status: 401 })
+      return createErrorResponse('Unauthorized', 401, 'UNAUTHORIZED')
     }
 
     const { searchParams } = new URL(request.url)
-    const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '10')
+    const queryParams = {
+      page: searchParams.get('page') || '1',
+      limit: searchParams.get('limit') || '10',
+      authorId: searchParams.get('authorId'),
+    }
+
+    // Validate query parameters
+    const validation = validateRequest(postQuerySchema, queryParams)
+    if (!validation.success) {
+      return createValidationErrorResponse(validation.error)
+    }
+
+    const { page, limit, authorId } = validation.data
     const offset = (page - 1) * limit
-    const authorId = searchParams.get('authorId')
 
     let query = supabase
       .from('posts')
@@ -67,7 +79,7 @@ export async function GET(request: Request) {
 
     if (error) {
       console.error('Error fetching posts:', error)
-      return new NextResponse('Internal Server Error', { status: 500 })
+      return createErrorResponse('Failed to fetch posts', 500, 'DATABASE_ERROR')
     }
 
     // Transform the data
@@ -87,10 +99,10 @@ export async function GET(request: Request) {
       isAuthor: post.user_id === user.id,
     }))
 
-    return NextResponse.json(transformedPosts)
+    return createSuccessResponse(transformedPosts)
   } catch (error) {
     console.error('Error in GET /api/posts:', error)
-    return new NextResponse('Internal Server Error', { status: 500 })
+    return createErrorResponse('Failed to fetch posts', 500, 'INTERNAL_ERROR')
   }
 }
 
@@ -104,20 +116,24 @@ export async function POST(request: Request) {
     } = await supabase.auth.getUser()
 
     if (!user) {
-      return new NextResponse('Unauthorized', { status: 401 })
+      return createErrorResponse('Unauthorized', 401, 'UNAUTHORIZED')
     }
 
-    const { content, imageUrl } = await request.json()
+    const body = await request.json()
 
-    if (!content) {
-      return new NextResponse('Content is required', { status: 400 })
+    // Validate request body
+    const validation = validateRequest(createPostSchema, body)
+    if (!validation.success) {
+      return createValidationErrorResponse(validation.error)
     }
+
+    const { content, imageUrl } = validation.data
 
     const { data: post, error } = await supabase
       .from('posts')
       .insert({
         content,
-        image_url: imageUrl,
+        image_url: imageUrl || null,
         user_id: user.id,
       })
       .select(
@@ -138,7 +154,7 @@ export async function POST(request: Request) {
 
     if (error) {
       console.error('Error creating post:', error)
-      return new NextResponse('Internal Server Error', { status: 500 })
+      return createErrorResponse('Failed to create post', 500, 'DATABASE_ERROR')
     }
 
     // Transform the data
@@ -158,24 +174,25 @@ export async function POST(request: Request) {
       isAuthor: true,
     }
 
-    return NextResponse.json(transformedPost, { status: 201 })
+    return createSuccessResponse(transformedPost, 201)
   } catch (error) {
     console.error('Error in POST /api/posts:', error)
-    return new NextResponse('Internal Server Error', { status: 500 })
+    return createErrorResponse('Failed to create post', 500, 'INTERNAL_ERROR')
   }
 }
 
 export async function PUT(request: Request) {
   try {
-    const { postId, content, imageUrl } = await request.json()
-    const userId = getAuthenticatedUserId(request)
+    const body = await request.json()
 
-    if (!postId) {
-      return NextResponse.json(
-        { error: 'Post ID is required' },
-        { status: 400 }
-      )
+    // Validate request body
+    const validation = validateRequest(updatePostSchema, body)
+    if (!validation.success) {
+      return createValidationErrorResponse(validation.error)
     }
+
+    const { postId, content, imageUrl } = validation.data
+    const userId = getAuthenticatedUserId(request)
 
     // First check if user owns the post
     const { data: post } = await supabase
@@ -185,44 +202,35 @@ export async function PUT(request: Request) {
       .single()
 
     if (!post) {
-      return NextResponse.json(
-        { error: 'Post not found' },
-        { status: 404 }
-      )
+      return createErrorResponse('Post not found', 404, 'POST_NOT_FOUND')
     }
 
     if (post.user_id !== userId) {
-      return NextResponse.json(
-        { error: 'Not authorized to update this post' },
-        { status: 403 }
-      )
+      return createErrorResponse('Not authorized to update this post', 403, 'UNAUTHORIZED_UPDATE')
     }
 
     const { data, error } = await supabase
       .from('posts')
       .update({
         content,
-        image_url: imageUrl,
+        image_url: imageUrl || null,
         updated_at: new Date().toISOString()
       })
       .eq('id', postId)
       .select()
       .single()
 
-    if (error) throw error
-    return NextResponse.json(data)
+    if (error) {
+      console.error('Post update error:', error)
+      return createErrorResponse('Failed to update post', 500, 'DATABASE_ERROR')
+    }
+    return createSuccessResponse(data)
   } catch (error) {
     console.error('Post update error:', error)
     if (error instanceof Error && error.message === 'Authentication required') {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      )
+      return createErrorResponse('Authentication required', 401, 'UNAUTHORIZED')
     }
-    return NextResponse.json(
-      { error: 'Failed to update post' },
-      { status: 500 }
-    )
+    return createErrorResponse('Failed to update post', 500, 'INTERNAL_ERROR')
   }
 }
 
@@ -233,10 +241,13 @@ export async function DELETE(request: Request) {
     const userId = getAuthenticatedUserId(request)
 
     if (!postId) {
-      return NextResponse.json(
-        { error: 'Post ID is required' },
-        { status: 400 }
-      )
+      return createErrorResponse('Post ID is required', 400, 'MISSING_POST_ID')
+    }
+
+    // Validate post ID format
+    const validation = validateRequest(postQuerySchema, { postId })
+    if (!validation.success) {
+      return createValidationErrorResponse(validation.error)
     }
 
     // First check if user owns the post
@@ -247,17 +258,11 @@ export async function DELETE(request: Request) {
       .single()
 
     if (!post) {
-      return NextResponse.json(
-        { error: 'Post not found' },
-        { status: 404 }
-      )
+      return createErrorResponse('Post not found', 404, 'POST_NOT_FOUND')
     }
 
     if (post.user_id !== userId) {
-      return NextResponse.json(
-        { error: 'Not authorized to delete this post' },
-        { status: 403 }
-      )
+      return createErrorResponse('Not authorized to delete this post', 403, 'UNAUTHORIZED_DELETE')
     }
 
     const { error } = await supabase
@@ -265,19 +270,16 @@ export async function DELETE(request: Request) {
       .delete()
       .eq('id', postId)
 
-    if (error) throw error
-    return NextResponse.json({ success: true })
+    if (error) {
+      console.error('Post deletion error:', error)
+      return createErrorResponse('Failed to delete post', 500, 'DATABASE_ERROR')
+    }
+    return createSuccessResponse({ success: true })
   } catch (error) {
     console.error('Post deletion error:', error)
     if (error instanceof Error && error.message === 'Authentication required') {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      )
+      return createErrorResponse('Authentication required', 401, 'UNAUTHORIZED')
     }
-    return NextResponse.json(
-      { error: 'Failed to delete post' },
-      { status: 500 }
-    )
+    return createErrorResponse('Failed to delete post', 500, 'INTERNAL_ERROR')
   }
 } 

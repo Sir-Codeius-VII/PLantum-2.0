@@ -1,17 +1,36 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { Database } from '@/types/database'
-
-const supabase = createClient<Database>(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+import { createCommentSchema, updateCommentSchema, commentQuerySchema } from '@/lib/validations/comments'
+import { validateRequest, createValidationErrorResponse, createErrorResponse, createSuccessResponse } from '@/lib/utils/validation'
+import { shouldUseMockAuth } from '@/lib/mock-auth'
 
 export async function GET(request: Request) {
   try {
+    // Check if environment variables are set
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      console.error('Missing Supabase environment variables');
+      return createErrorResponse('Server configuration error', 500, 'CONFIG_ERROR');
+    }
+
+    const supabase = createClient<Database>(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    )
+
     const { searchParams } = new URL(request.url)
-    const postId = searchParams.get('postId')
-    const commentId = searchParams.get('commentId')
+    const queryParams = {
+      postId: searchParams.get('postId'),
+      commentId: searchParams.get('commentId'),
+    }
+
+    // Validate query parameters
+    const validation = validateRequest(commentQuerySchema, queryParams)
+    if (!validation.success) {
+      return createValidationErrorResponse(validation.error)
+    }
+
+    const { postId, commentId } = validation.data
 
     if (commentId) {
       // Get single comment
@@ -24,15 +43,15 @@ export async function GET(request: Request) {
         .eq('id', commentId)
         .single()
 
-      if (error) throw error
-      return NextResponse.json(data)
+      if (error) {
+        console.error('Error fetching comment:', error)
+        return createErrorResponse('Failed to fetch comment', 500, 'DATABASE_ERROR')
+      }
+      return createSuccessResponse(data)
     }
 
     if (!postId) {
-      return NextResponse.json(
-        { error: 'Post ID is required for fetching comments' },
-        { status: 400 }
-      )
+      return createErrorResponse('Post ID is required for fetching comments', 400, 'MISSING_POST_ID')
     }
 
     // Get all comments for a post
@@ -45,33 +64,52 @@ export async function GET(request: Request) {
       .eq('post_id', postId)
       .order('created_at', { ascending: true })
 
-    if (error) throw error
-    return NextResponse.json(data)
+    if (error) {
+      console.error('Error fetching comments:', error)
+      return createErrorResponse('Failed to fetch comments', 500, 'DATABASE_ERROR')
+    }
+    return createSuccessResponse(data)
   } catch (error) {
     console.error('Error fetching comments:', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch comments' },
-      { status: 500 }
-    )
+    return createErrorResponse('Failed to fetch comments', 500, 'INTERNAL_ERROR')
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const { content, postId, userId } = await request.json()
-
-    if (!content) {
-      return NextResponse.json(
-        { error: 'Comment content is required' },
-        { status: 400 }
-      )
+    // Check if environment variables are set
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      console.error('Missing Supabase environment variables');
+      return createErrorResponse('Server configuration error', 500, 'CONFIG_ERROR');
     }
 
-    if (!postId || !userId) {
-      return NextResponse.json(
-        { error: 'Post ID and User ID are required' },
-        { status: 400 }
-      )
+    const supabase = createClient<Database>(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    )
+
+    const body = await request.json()
+
+    // Validate request body
+    const validation = validateRequest(createCommentSchema, body)
+    if (!validation.success) {
+      return createValidationErrorResponse(validation.error)
+    }
+
+    const { content, postId, userId } = validation.data
+
+    if (shouldUseMockAuth()) {
+      // Mock comment creation
+      const mockComment = {
+        id: `mock-comment-${Date.now()}`,
+        content,
+        post_id: postId,
+        user_id: userId,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+      console.log('Mock comment created:', mockComment)
+      return createSuccessResponse(mockComment)
     }
 
     const { data, error } = await supabase
@@ -84,34 +122,39 @@ export async function POST(request: Request) {
       .select()
       .single()
 
-    if (error) throw error
-    return NextResponse.json(data)
+    if (error) {
+      console.error('Comment creation error:', error)
+      return createErrorResponse('Failed to create comment', 500, 'DATABASE_ERROR')
+    }
+    return createSuccessResponse(data, 201)
   } catch (error) {
     console.error('Comment creation error:', error)
-    return NextResponse.json(
-      { error: 'Failed to create comment' },
-      { status: 500 }
-    )
+    return createErrorResponse('Failed to create comment', 500, 'INTERNAL_ERROR')
   }
 }
 
 export async function PUT(request: Request) {
   try {
-    const { commentId, content } = await request.json()
-
-    if (!commentId) {
-      return NextResponse.json(
-        { error: 'Comment ID is required' },
-        { status: 400 }
-      )
+    // Check if environment variables are set
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      console.error('Missing Supabase environment variables');
+      return createErrorResponse('Server configuration error', 500, 'CONFIG_ERROR');
     }
 
-    if (!content) {
-      return NextResponse.json(
-        { error: 'Comment content is required' },
-        { status: 400 }
-      )
+    const supabase = createClient<Database>(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    )
+
+    const body = await request.json()
+
+    // Validate request body
+    const validation = validateRequest(updateCommentSchema, body)
+    if (!validation.success) {
+      return createValidationErrorResponse(validation.error)
     }
+
+    const { commentId, content } = validation.data
 
     const { data, error } = await supabase
       .from('comments')
@@ -123,27 +166,41 @@ export async function PUT(request: Request) {
       .select()
       .single()
 
-    if (error) throw error
-    return NextResponse.json(data)
+    if (error) {
+      console.error('Comment update error:', error)
+      return createErrorResponse('Failed to update comment', 500, 'DATABASE_ERROR')
+    }
+    return createSuccessResponse(data)
   } catch (error) {
     console.error('Comment update error:', error)
-    return NextResponse.json(
-      { error: 'Failed to update comment' },
-      { status: 500 }
-    )
+    return createErrorResponse('Failed to update comment', 500, 'INTERNAL_ERROR')
   }
 }
 
 export async function DELETE(request: Request) {
   try {
+    // Check if environment variables are set
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      console.error('Missing Supabase environment variables');
+      return createErrorResponse('Server configuration error', 500, 'CONFIG_ERROR');
+    }
+
+    const supabase = createClient<Database>(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    )
+
     const { searchParams } = new URL(request.url)
     const commentId = searchParams.get('commentId')
 
     if (!commentId) {
-      return NextResponse.json(
-        { error: 'Comment ID is required' },
-        { status: 400 }
-      )
+      return createErrorResponse('Comment ID is required', 400, 'MISSING_COMMENT_ID')
+    }
+
+    // Validate comment ID format
+    const validation = validateRequest(commentQuerySchema, { commentId })
+    if (!validation.success) {
+      return createValidationErrorResponse(validation.error)
     }
 
     const { error } = await supabase
@@ -151,13 +208,13 @@ export async function DELETE(request: Request) {
       .delete()
       .eq('id', commentId)
 
-    if (error) throw error
-    return NextResponse.json({ success: true })
+    if (error) {
+      console.error('Comment deletion error:', error)
+      return createErrorResponse('Failed to delete comment', 500, 'DATABASE_ERROR')
+    }
+    return createSuccessResponse({ success: true })
   } catch (error) {
     console.error('Comment deletion error:', error)
-    return NextResponse.json(
-      { error: 'Failed to delete comment' },
-      { status: 500 }
-    )
+    return createErrorResponse('Failed to delete comment', 500, 'INTERNAL_ERROR')
   }
 } 

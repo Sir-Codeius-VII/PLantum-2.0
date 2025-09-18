@@ -26,7 +26,6 @@ describe('PaymentButton', () => {
     
     expect(screen.getByText('Select Payment Method')).toBeInTheDocument()
     expect(screen.getByText('PayFast')).toBeInTheDocument()
-    expect(screen.getByText('Stripe')).toBeInTheDocument()
     expect(screen.getByText('Bank Transfer')).toBeInTheDocument()
   })
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import bcrypt from "bcryptjs"
-import { db } from "@/lib/db"
+import { createClient } from "@supabase/supabase-js"
 
 export async function POST(req: Request) {
   try {
@@ -11,38 +11,47 @@ export async function POST(req: Request) {
       return new NextResponse("Missing fields", { status: 400 })
     }
 
-    const existingUser = await db.user.findUnique({
-      where: {
-        email
-      }
-    })
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+    const { data: existing, error: existingErr } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('email', email)
+      .maybeSingle()
 
-    if (existingUser) {
+    if (existing) {
       return new NextResponse("Email already exists", { status: 400 })
     }
 
     const hashedPassword = await bcrypt.hash(password, 10)
 
-    const user = await db.user.create({
-      data: {
-        email,
-        name,
-        password: hashedPassword,
+    const { data: signUp, error: signUpError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { name }
       }
     })
+    if (signUpError || !signUp.user) {
+      return new NextResponse("Failed to create user", { status: 500 })
+    }
 
-    // Create empty profile for user
-    await db.profile.create({
-      data: {
-        userId: user.id,
-      }
+    // Create profile row
+    await supabase.from('profiles').insert({
+      id: signUp.user.id,
+      name,
+      email,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     })
 
     return NextResponse.json({
       user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
+        id: signUp.user.id,
+        name,
+        email,
       }
     })
   } catch (error) {

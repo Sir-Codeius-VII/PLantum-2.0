@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import { useRouter } from "next/navigation"
 import { Header } from "@/components/Header"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -757,6 +758,7 @@ const sortStartups = (startups, sortBy) => {
 }
 
 export default function StartupsPage() {
+  const router = useRouter()
   // State for filters and view options
   const [filters, setFilters] = useState({
     industry: "All Industries",
@@ -897,13 +899,15 @@ export default function StartupsPage() {
     if (trendingCheckbox) trendingCheckbox.checked = false
   }
 
-  // Track startup views
+  // Track startup views and navigate to profile
   const handleViewStartup = (startup) => {
     setSelectedStartup(startup)
     setAppUserMetrics((prev) => ({
       ...prev,
       startupViews: [...prev.startupViews.filter((s) => s.id !== startup.id), startup],
     }))
+    // Navigate to startup profile using Next.js router
+    router.push(`/startup/${startup.id}`)
   }
 
   // Toggle bookmark

@@ -1,13 +1,41 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { shouldUseMockAuth } from '@/lib/mock-auth';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    if (shouldUseMockAuth()) {
+      // Mock session - check for auth header
+      const authHeader = request.headers.get('authorization');
+      if (authHeader && authHeader.includes('mock-token')) {
+        return NextResponse.json({
+          session: {
+            user: {
+              id: 'mock-user-1',
+              email: 'test@example.com',
+              name: 'Test User',
+              is_admin: false,
+              created_at: new Date().toISOString(),
+            },
+            access_token: 'mock-token',
+            refresh_token: 'mock-refresh-token',
+          }
+        });
+      }
+      return NextResponse.json({ session: null });
+    }
+
+    // Check if environment variables are set
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      console.error('Missing Supabase environment variables');
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+    }
+
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    );
+
     const { data: { session }, error } = await supabase.auth.getSession();
 
     if (error) {

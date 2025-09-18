@@ -7,18 +7,23 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import Link from "next/link"
-import { useAuthContext } from '@/contexts/auth-context'
 import { useRouter } from 'next/navigation'
 
 export function UserProfileCard() {
-  const { user, logout } = useAuthContext()
   const router = useRouter()
 
-  if (!user) return null
+  // Mock user data for testing
+  const user = {
+    name: "John Doe",
+    email: "john@example.com",
+    avatar_url: "/placeholder.svg",
+    bio: "Founder & CEO at TechStart"
+  }
 
   const handleLogout = async () => {
     try {
-      await logout()
+      // Mock logout for testing
+      console.log('Logout clicked')
       router.push('/')
     } catch (error) {
       console.error('Logout error:', error)
@@ -31,7 +36,7 @@ export function UserProfileCard() {
         <Avatar className="h-16 w-16">
           <AvatarImage src={user.avatar_url || undefined} alt={user.name} />
           <AvatarFallback>{user.name?.charAt(0)}</AvatarFallback>
-            </Avatar>
+        </Avatar>
         <div className="flex-1">
           <h2 className="text-xl font-semibold">{user.name}</h2>
           <p className="text-sm text-muted-foreground">{user.email}</p>

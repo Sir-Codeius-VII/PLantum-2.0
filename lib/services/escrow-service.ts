@@ -1,10 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
-
 export interface EscrowReleaseConditions {
   type: 'milestone' | 'delivery' | 'time'
   description: string
@@ -23,7 +18,18 @@ export interface CreateEscrowParams {
 }
 
 export class EscrowService {
+  private static getSupabaseClient() {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error('Missing Supabase environment variables');
+    }
+    return createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+  }
+
   static async createEscrow(params: CreateEscrowParams) {
+    const supabase = this.getSupabaseClient();
     const { data, error } = await supabase
       .from('escrow')
       .insert({
@@ -44,6 +50,7 @@ export class EscrowService {
   }
 
   static async getEscrow(id: string) {
+    const supabase = this.getSupabaseClient();
     const { data, error } = await supabase
       .from('escrow')
       .select(`
@@ -60,6 +67,7 @@ export class EscrowService {
   }
 
   static async getUserEscrows(userId: string) {
+    const supabase = this.getSupabaseClient();
     const { data, error } = await supabase
       .from('escrow')
       .select(`
@@ -76,6 +84,7 @@ export class EscrowService {
   }
 
   static async releaseEscrow(id: string, userId: string) {
+    const supabase = this.getSupabaseClient();
     // Verify user has permission to release
     const escrow = await this.getEscrow(id)
     if (!escrow) throw new Error('Escrow not found')
@@ -107,6 +116,7 @@ export class EscrowService {
   }
 
   static async cancelEscrow(id: string, userId: string) {
+    const supabase = this.getSupabaseClient();
     // Verify user has permission to cancel
     const escrow = await this.getEscrow(id)
     if (!escrow) throw new Error('Escrow not found')
@@ -136,6 +146,7 @@ export class EscrowService {
   }
 
   private static async verifyReleaseConditions(escrow: any): Promise<boolean> {
+    const supabase = this.getSupabaseClient();
     const conditions = escrow.release_conditions
 
     switch (conditions.type) {

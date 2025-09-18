@@ -1,86 +1,103 @@
-import { NextResponse } from 'next/server'
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
-import { PaymentService } from '@/lib/payment'
-import { EmailService } from '@/lib/email-service'
-import { handlePaymentError } from '@/lib/error-handling'
+import { NextRequest, NextResponse } from 'next/server';
+import { createPayFast } from '@/lib/payfast';
+import { createClient } from '@supabase/supabase-js';
 
-const paymentService = new PaymentService()
-const emailService = EmailService.getInstance()
-
-export async function POST(request: Request) {
+export async function POST(req: NextRequest) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
-    const body = await request.json()
-    const signature = request.headers.get('x-payfast-signature')
-
-    // Verify webhook signature
-    if (!signature) {
-      return NextResponse.json(
-        { error: 'Missing signature' },
-        { status: 400 }
-      )
+    // Check if environment variables are set
+    if (!process.env.PAYFAST_MERCHANT_ID || !process.env.PAYFAST_MERCHANT_KEY || !process.env.PAYFAST_PASSPHRASE) {
+      console.error('Missing PayFast environment variables');
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
     }
 
-    // Process the webhook
-    const payment = await paymentService.verifyPayment(body, signature)
-    if (!payment) {
-      return NextResponse.json(
-        { error: 'Invalid payment' },
-        { status: 400 }
-      )
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      console.error('Missing Supabase environment variables');
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
     }
 
-    // Update payment status in database
-    const { error: updateError } = await supabase
+    // Initialize PayFast with configuration
+    const payfast = createPayFast({
+      merchantId: process.env.PAYFAST_MERCHANT_ID,
+      merchantKey: process.env.PAYFAST_MERCHANT_KEY,
+      passPhrase: process.env.PAYFAST_PASSPHRASE,
+      sandbox: process.env.NODE_ENV !== 'production',
+    });
+
+    const formData = await req.formData();
+    const data = Object.fromEntries(formData.entries()) as Record<string, string>;
+
+    // Validate PayFast signature
+    if (!payfast.validateCallback(data)) {
+      console.error('Invalid PayFast signature');
+      return NextResponse.json(
+        { error: 'Invalid signature' },
+        { status: 400 }
+      );
+    }
+
+    const paymentId = data.m_payment_id;
+    const paymentStatus = data.payment_status;
+    const businessId = data.custom_str1;
+    const userId = data.custom_str2;
+
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    )
+
+    // Get payment record
+    const { data: payment, error: paymentError } = await supabase
+      .from('payments')
+      .select('*')
+      .eq('id', paymentId)
+      .single()
+
+    if (paymentError || !payment) {
+      console.error('Payment not found:', paymentId);
+      return NextResponse.json(
+        { error: 'Payment not found' },
+        { status: 404 }
+      );
+    }
+
+    // Update payment status
+    const status = paymentStatus === 'COMPLETE' ? 'completed' : 'failed';
+    await supabase
       .from('payments')
       .update({
-        status: payment.status,
+        status,
+        payfast_payment_id: data.pf_payment_id,
+        payfast_signature: data.signature,
+        payfast_timestamp: data.payment_date,
+        payfast_response: data,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', payment.id)
+      .eq('id', paymentId)
 
-    if (updateError) {
-      console.error('Error updating payment:', updateError)
-      return NextResponse.json(
-        { error: 'Failed to update payment' },
-        { status: 500 }
-      )
+    // If payment is successful, create a transaction record
+    if (status === 'completed') {
+      await supabase.from('transactions').insert({
+        business_id: businessId,
+        user_id: userId,
+        type: 'payment',
+        amount: payment.amount,
+        currency: payment.currency,
+        status: 'completed',
+        description: `Payment for ${payment?.payfast_response?.item_name || ''}`,
+        metadata: {
+          paymentId,
+          payfastPaymentId: data.pf_payment_id,
+        },
+        created_at: new Date().toISOString(),
+      })
     }
 
-    // Send email notification based on payment status
-    switch (payment.status) {
-      case 'completed':
-        await emailService.sendPaymentConfirmation(payment.user_id, payment)
-        break
-      case 'failed':
-        await emailService.sendPaymentFailed(payment.user_id, payment, payment.error || 'Payment failed')
-        break
-      case 'refunded':
-        await emailService.sendPaymentRefund(payment.user_id, payment, payment.refund_reason || 'Payment refunded')
-        break
-    }
-
-    // Log the webhook event
-    await supabase.from('security_logs').insert({
-      user_id: payment.user_id,
-      event_type: 'payment_webhook',
-      details: {
-        payment_id: payment.id,
-        status: payment.status,
-        provider: payment.provider,
-      },
-      ip_address: request.headers.get('x-forwarded-for') || 'unknown',
-      user_agent: request.headers.get('user-agent') || 'unknown',
-    })
-
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Webhook error:', error)
-    const paymentError = handlePaymentError(error)
+    console.error('PayFast webhook error:', error);
     return NextResponse.json(
-      { error: paymentError.message },
-      { status: paymentError.code }
-    )
+      { error: 'Failed to process webhook' },
+      { status: 500 }
+    );
   }
-} 
+}

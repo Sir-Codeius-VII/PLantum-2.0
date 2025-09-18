@@ -1,10 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { mockAuth, shouldUseMockAuth } from '@/lib/mock-auth';
 
 export async function POST(request: Request) {
   try {
@@ -16,6 +12,35 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    // Use mock auth if Supabase is not configured
+    if (shouldUseMockAuth()) {
+      console.log('Using mock authentication for development');
+      const { user, error } = await mockAuth.signIn(email, password);
+      
+      if (error) {
+        return NextResponse.json({ error }, { status: 401 });
+      }
+
+      return NextResponse.json({
+        session: {
+          user: user,
+          access_token: 'mock-token',
+          refresh_token: 'mock-refresh-token',
+        }
+      });
+    }
+
+    // Check if environment variables are set for real Supabase
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      console.error('Missing Supabase environment variables');
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+    }
+
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    );
 
     const { data, error } = await supabase.auth.signInWithPassword({
       email,

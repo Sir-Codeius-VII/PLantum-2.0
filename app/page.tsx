@@ -16,11 +16,12 @@ import {
   Ticket,
 } from "lucide-react"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
 
 // Mock data for platform metrics
 const platformMetrics = [
@@ -175,16 +176,40 @@ const feedItems = [
 
 export default function HomePage() {
   const [isLoading, setIsLoading] = useState(true)
+  const [currentUpdate, setCurrentUpdate] = useState(0)
 
   useEffect(() => {
     // Simulate loading
     const timer = setTimeout(() => {
       setIsLoading(false)
-    }, 1000)
+    }, 500)
     return () => clearTimeout(timer)
   }, [])
 
-        return (
+  const updates = [
+    {
+      title: "New Dashboard Features",
+      description: "Enhanced analytics and reporting tools now available"
+    },
+    {
+      title: "Mobile App Launch",
+      description: "Download our new mobile app for iOS and Android"
+    },
+    {
+      title: "Partnership Announcement",
+      description: "We've partnered with 10 new venture capital firms"
+    }
+  ]
+
+  const nextUpdate = () => {
+    setCurrentUpdate((prev) => (prev + 1) % updates.length)
+  }
+
+  const prevUpdate = () => {
+    setCurrentUpdate((prev) => (prev - 1 + updates.length) % updates.length)
+  }
+
+  return (
     <div className="min-h-screen bg-background">
       {/* Hero Section */}
       <section className="relative py-24 md:py-32 overflow-hidden">
@@ -225,6 +250,33 @@ export default function HomePage() {
           transition={{ duration: 1.5 }}
         />
       </section>
+
+      {/* Latest Updates Notification */}
+      <div className="max-w-screen-xl mx-auto px-4 -mt-16 relative z-30">
+        <div className="max-w-2xl mx-auto">
+          <Card className="mb-6">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Badge variant="outline">Latest Updates ({currentUpdate + 1}/{updates.length})</Badge>
+                  <div>
+                    <h3 className="font-semibold text-sm">{updates[currentUpdate].title}</h3>
+                    <p className="text-xs text-muted-foreground">{updates[currentUpdate].description}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="sm" onClick={prevUpdate}>
+                    <ArrowUpRight className="h-4 w-4 rotate-180" />
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={nextUpdate}>
+                    <ArrowUpRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
 
       {/* Platform Stats */}
       <div className="max-w-screen-xl mx-auto px-4">
@@ -269,6 +321,55 @@ export default function HomePage() {
             )}
           </div>
         </div>
+
+      {/* Total Users Count */}
+      <div className="max-w-screen-xl mx-auto px-4 mt-8">
+        <div className="max-w-2xl mx-auto text-center">
+          <p className="text-lg font-medium text-muted-foreground">2,345 Total Users</p>
+        </div>
+      </div>
+
+      {/* Create Post Section */}
+      <div className="max-w-screen-xl mx-auto px-4 mt-8">
+        <div className="max-w-2xl mx-auto">
+          <Card className="mb-6">
+            <CardHeader className="flex flex-row items-center gap-4 pb-2">
+              <Avatar>
+                <AvatarImage src="/placeholder-user.jpg" alt="User" />
+                <AvatarFallback>U</AvatarFallback>
+              </Avatar>
+              <div className="flex-1">
+                <Textarea
+                  placeholder="What's on your mind?"
+                  className="resize-none border-none focus-visible:ring-0 p-0"
+                  rows={1}
+                />
+              </div>
+            </CardHeader>
+            <CardFooter className="flex justify-between border-t px-6 py-3">
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm">
+                  <svg className="mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect width="18" height="18" x="3" y="3" rx="2" />
+                    <path d="M3 15h18" />
+                    <path d="M9 9h.01" />
+                    <path d="M15 9h.01" />
+                  </svg>
+                  Add Media
+                </Button>
+                <Button variant="outline" size="sm">
+                  <svg className="mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                    <polyline points="14 2 14 8 20 8" />
+                  </svg>
+                  Add Document
+                </Button>
+              </div>
+              <Button>Post</Button>
+            </CardFooter>
+          </Card>
+        </div>
+      </div>
 
       {/* Social Feed */}
       <div className="max-w-screen-xl mx-auto px-4 mt-8">
@@ -345,15 +446,15 @@ export default function HomePage() {
             </div>
           )}
                     <div className="flex items-center gap-4 border-t pt-4">
-                      <Button variant="ghost" size="sm" className="gap-2">
+                      <Button variant="ghost" size="sm" className="gap-2 hover:text-red-500">
                         <Heart className="h-4 w-4" />
                         {item.stats.likes}
           </Button>
-                      <Button variant="ghost" size="sm" className="gap-2">
+                      <Button variant="ghost" size="sm" className="gap-2 hover:text-blue-500">
                         <MessageSquare className="h-4 w-4" />
                         {item.stats.comments}
           </Button>
-                      <Button variant="ghost" size="sm" className="gap-2">
+                      <Button variant="ghost" size="sm" className="gap-2 hover:text-green-500">
                         <Share2 className="h-4 w-4" />
                         {item.stats.shares}
           </Button>

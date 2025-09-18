@@ -1,0 +1,39 @@
+
+> my-v0-project@0.1.0 dev
+> next dev
+
+  ▲ Next.js 14.2.30
+  - Local:        http://localhost:3000
+  - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 4.8s
+ ✓ Compiled /middleware in 348ms
+ ✓ Compiled (144 modules)
+ ○ Compiling /startups ...
+(node:57035) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+ ✓ Compiled /startups in 17.7s (1752 modules)
+ GET /startups 200 in 19583ms
+ ✓ Compiled in 2.6s (877 modules)
+ ○ Compiling / ...
+ ✓ Compiled / in 2.8s (1754 modules)
+ GET / 200 in 3957ms
+ GET /startups 200 in 201ms
+ ○ Compiling /investors ...
+ ✓ Compiled /investors in 1401ms (1763 modules)
+ GET /investors 200 in 1702ms
+ ○ Compiling /auth/signup ...
+ ✓ Compiled /auth/signup in 676ms (1769 modules)
+ GET /auth/signup 200 in 805ms
+ ○ Compiling /auth/signin ...
+ ✓ Compiled /auth/signin in 621ms (1775 modules)
+ GET /auth/signin 200 in 747ms
+ ○ Compiling /claim-r100k ...
+ ✓ Compiled /claim-r100k in 1789ms (1790 modules)
+ GET /claim-r100k 200 in 1984ms
+ ○ Compiling /leaderboard ...
+ ✓ Compiled /leaderboard in 10.3s (3482 modules)
+ GET /leaderboard 200 in 10827ms
+ ✓ Compiled in 4s (1728 modules)
+ ✓ Compiled in 837ms (1728 modules)

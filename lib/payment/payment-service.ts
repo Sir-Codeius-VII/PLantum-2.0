@@ -1,6 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
 import { PaymentProvider } from './providers/payment-provider';
-import { StripeProvider } from './providers/stripe-provider';
 import {
   PaymentDetails,
   PaymentResult,
@@ -31,11 +30,7 @@ export class PaymentService {
   }
 
   private initializeProviders(): void {
-    // Initialize Stripe provider
-    if (process.env.STRIPE_SECRET_KEY) {
-      this.providers.set('stripe', new StripeProvider(process.env.STRIPE_SECRET_KEY));
-    }
-    // Add more providers here
+    // Stripe removed; initialize only providers we support
   }
 
   public async processPayment(

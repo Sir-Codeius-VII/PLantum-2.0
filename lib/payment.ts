@@ -11,7 +11,7 @@ interface PaymentDetails {
   notifyUrl: string
   customData?: Record<string, string>
   currency?: string
-  paymentProvider?: 'payfast' | 'stripe' | 'bank'
+  paymentProvider?: 'payfast' | 'bank'
 }
 
 interface PaymentProvider {
@@ -95,30 +95,7 @@ class PayFastProvider implements PaymentProvider {
   }
 }
 
-class StripeProvider implements PaymentProvider {
-  private readonly secretKey: string
-  private readonly isTestMode: boolean
-
-  constructor() {
-    this.secretKey = process.env.STRIPE_SECRET_KEY!
-    this.isTestMode = process.env.NODE_ENV !== 'production'
-  }
-
-  async createPayment(details: PaymentDetails) {
-    // Implement Stripe payment creation
-    throw new Error('Stripe integration not implemented yet')
-  }
-
-  verifyPayment(data: Record<string, string>): boolean {
-    // Implement Stripe webhook verification
-    throw new Error('Stripe integration not implemented yet')
-  }
-
-  async getPaymentStatus(paymentId: string): Promise<string> {
-    // Implement Stripe status check
-    throw new Error('Stripe integration not implemented yet')
-  }
-}
+// Stripe removed
 
 class BankTransferProvider implements PaymentProvider {
   async createPayment(details: PaymentDetails) {
@@ -156,7 +133,6 @@ export class PaymentService {
   constructor() {
     this.providers = {
       payfast: new PayFastProvider(),
-      stripe: new StripeProvider(),
       bank: new BankTransferProvider(),
     }
   }
