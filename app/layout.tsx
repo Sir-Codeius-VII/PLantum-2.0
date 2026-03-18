@@ -110,11 +110,16 @@ export default function RootLayout({
                   <MainNav />
                   <div className="flex flex-1 items-center justify-between space-x-2 md:justify-end">
                     <DigitalClock />
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 md:gap-2">
                       <SearchCommand />
                       <ThemeToggle />
                       <nav className="flex items-center space-x-1">
-                        <Button variant="ghost" className="ml-auto" asChild>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          className="ml-auto text-xs sm:text-sm px-2 sm:px-4 py-1.5 sm:py-2 h-8 sm:h-10 whitespace-nowrap" 
+                          asChild
+                        >
                           <a href="/auth/signin">Sign In</a>
                         </Button>
                       </nav>

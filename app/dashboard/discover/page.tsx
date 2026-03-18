@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { ArrowUpRight, Heart, MessageSquare, Share2 } from "lucide-react"
+import { useState, useRef, useEffect } from "react"
+import { ArrowUpRight, Heart, MessageSquare, Share2, X, FileText, Image as ImageIcon, Video, Music } from "lucide-react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -12,6 +12,82 @@ import { Badge } from "@/components/ui/badge"
 
 export default function DiscoverPage() {
   const [postContent, setPostContent] = useState("")
+  const documentInputRef = useRef<HTMLInputElement>(null)
+  const mediaInputRef = useRef<HTMLInputElement>(null)
+  const [selectedDocuments, setSelectedDocuments] = useState<File[]>([])
+  const [selectedMedia, setSelectedMedia] = useState<File[]>([])
+  const [mediaPreviewUrls, setMediaPreviewUrls] = useState<string[]>([])
+
+  const handleDocumentSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (files && files.length > 0) {
+      const newDocuments = Array.from(files)
+      setSelectedDocuments((prev) => [...prev, ...newDocuments])
+    }
+    // Reset input so the same file can be selected again
+    if (e.target) {
+      e.target.value = ""
+    }
+  }
+
+  const handleMediaSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (files && files.length > 0) {
+      const newMedia = Array.from(files)
+      const newPreviewUrls = newMedia.map((file) => URL.createObjectURL(file))
+      setSelectedMedia((prev) => [...prev, ...newMedia])
+      setMediaPreviewUrls((prev) => [...prev, ...newPreviewUrls])
+    }
+    // Reset input so the same file can be selected again
+    if (e.target) {
+      e.target.value = ""
+    }
+  }
+
+  const handleAddDocumentClick = () => {
+    documentInputRef.current?.click()
+  }
+
+  const handleAddMediaClick = () => {
+    mediaInputRef.current?.click()
+  }
+
+  const handleRemoveMedia = (index: number) => {
+    // Revoke object URL before removing
+    if (mediaPreviewUrls[index]) {
+      URL.revokeObjectURL(mediaPreviewUrls[index])
+    }
+    setSelectedMedia((prev) => prev.filter((_, i) => i !== index))
+    setMediaPreviewUrls((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const handleRemoveDocument = (index: number) => {
+    setSelectedDocuments((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return "0 Bytes"
+    const k = 1024
+    const sizes = ["Bytes", "KB", "MB", "GB"]
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
+  }
+
+  const getFileTypeIcon = (file: File) => {
+    if (file.type.startsWith("image/")) return ImageIcon
+    if (file.type.startsWith("video/")) return Video
+    if (file.type.startsWith("audio/")) return Music
+    return FileText
+  }
+
+  // Cleanup object URLs on unmount
+  useEffect(() => {
+    return () => {
+      mediaPreviewUrls.forEach((url) => {
+        URL.revokeObjectURL(url)
+      })
+    }
+  }, [mediaPreviewUrls])
 
   return (
     <div className="container mx-auto py-6 px-4 md:px-6">
@@ -32,9 +108,100 @@ export default function DiscoverPage() {
                 />
               </div>
             </CardHeader>
+            {(selectedMedia.length > 0 || selectedDocuments.length > 0) && (
+              <CardContent className="px-6 py-3 border-b">
+                <div className="space-y-3">
+                  {/* Media Previews */}
+                  {selectedMedia.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {selectedMedia.map((file, index) => {
+                        const previewUrl = mediaPreviewUrls[index]
+                        const FileIcon = getFileTypeIcon(file)
+                        const isImage = file.type.startsWith("image/")
+                        const isVideo = file.type.startsWith("video/")
+                        
+                        return (
+                          <div
+                            key={`media-${index}`}
+                            className="relative group border rounded-lg overflow-hidden bg-muted/50"
+                          >
+                            {isImage && previewUrl ? (
+                              <div className="relative w-24 h-24 min-w-[96px] min-h-[96px] border rounded-lg overflow-hidden bg-background flex-shrink-0">
+                                <img
+                                  src={previewUrl}
+                                  alt={file.name}
+                                  className="w-full h-full object-cover"
+                                  style={{ display: 'block', width: '100%', height: '100%' }}
+                                  onError={(e) => {
+                                    console.error('Image failed to load:', previewUrl)
+                                    // Fallback to icon if image fails to load
+                                    e.currentTarget.style.display = 'none'
+                                  }}
+                                />
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="absolute top-1 right-1 h-6 w-6 bg-background/90 hover:bg-background opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-sm"
+                                  onClick={() => handleRemoveMedia(index)}
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className="w-24 h-24 flex flex-col items-center justify-center p-2">
+                                <FileIcon className="h-8 w-8 text-muted-foreground mb-1" />
+                                <p className="text-xs text-muted-foreground truncate w-full text-center">
+                                  {file.name.length > 12 ? file.name.substring(0, 12) + "..." : file.name}
+                                </p>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="absolute top-1 right-1 h-6 w-6 bg-background/80 hover:bg-background opacity-0 group-hover:opacity-100 transition-opacity"
+                                  onClick={() => handleRemoveMedia(index)}
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                  
+                  {/* Document Previews */}
+                  {selectedDocuments.length > 0 && (
+                    <div className="space-y-2">
+                      {selectedDocuments.map((file, index) => (
+                        <div
+                          key={`doc-${index}`}
+                          className="flex items-center gap-2 p-2 border rounded-lg bg-muted/50 group"
+                        >
+                          <FileText className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{file.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {formatFileSize(file.size)} • {file.type || "Document"}
+                            </p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={() => handleRemoveDocument(index)}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            )}
             <CardFooter className="flex justify-between border-t px-6 py-3">
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" onClick={handleAddMediaClick} type="button">
                   <svg
                     className="mr-2 h-4 w-4"
                     xmlns="http://www.w3.org/2000/svg"
@@ -52,7 +219,15 @@ export default function DiscoverPage() {
                   </svg>
                   Add Media
                 </Button>
-                <Button variant="outline" size="sm">
+                <input
+                  type="file"
+                  ref={mediaInputRef}
+                  onChange={handleMediaSelect}
+                  className="hidden"
+                  accept="image/*,video/*,audio/*"
+                  multiple
+                />
+                <Button variant="outline" size="sm" onClick={handleAddDocumentClick} type="button">
                   <svg
                     className="mr-2 h-4 w-4"
                     xmlns="http://www.w3.org/2000/svg"
@@ -68,6 +243,14 @@ export default function DiscoverPage() {
                   </svg>
                   Add Document
                 </Button>
+                <input
+                  type="file"
+                  ref={documentInputRef}
+                  onChange={handleDocumentSelect}
+                  className="hidden"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
+                  multiple
+                />
               </div>
               <Button disabled={!postContent.trim()}>Post</Button>
             </CardFooter>

@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useParams } from "next/navigation"
-import { Calendar, Mail, MapPin, Users } from "lucide-react"
+import { Calendar, Mail, MapPin, Users, Building2, Tag, Bookmark, MessageCircle } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -124,6 +124,7 @@ export default function StartupDetailPage() {
   const startupId = params.startupId
   const [activeTab, setActiveTab] = useState("overview")
   const [showShareAgreement, setShowShareAgreement] = useState(false)
+  const [isBookmarked, setIsBookmarked] = useState(false)
 
   // In a real app, you would fetch the startup data based on the ID
   // const { data: startup, isLoading, error } = useStartupData(startupId)
@@ -147,39 +148,45 @@ export default function StartupDetailPage() {
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
             {/* Startup Header */}
-            <div className="flex flex-col md:flex-row md:items-end gap-4 -mt-20 relative z-10">
-              <Avatar className="h-24 w-24 rounded-xl border-4 border-background shadow-md">
+            <div className="flex flex-col md:flex-row md:items-center gap-4 -mt-20 relative z-10">
+              <Avatar className="h-20 w-20 rounded-full border-2 border-background shadow-sm flex-shrink-0">
                 <AvatarImage src={startup.logo} alt={startup.name} />
-                <AvatarFallback className="rounded-xl">{startup.name.substring(0, 2)}</AvatarFallback>
+                <AvatarFallback className="rounded-full">{startup.name.substring(0, 2)}</AvatarFallback>
               </Avatar>
-              <div className="flex-1">
-                <div className="flex flex-wrap items-center gap-2 mb-1">
-                  <h1 className="text-2xl font-bold">{startup.name}</h1>
-                  <Badge className="bg-green-500 text-white">Verified</Badge>
-                  <Badge variant="outline" className="text-xs">
-                    {startup.industry}
-                  </Badge>
-                </div>
-                <p className="text-muted-foreground">{startup.tagline}</p>
-                <div className="flex flex-wrap items-center gap-3 mt-2 text-sm text-muted-foreground">
-                  <div className="flex items-center">
-                    <MapPin className="mr-1 h-4 w-4" />
-                    {startup.location}
+              <div className="flex-1 min-w-0">
+                <h1 className="text-2xl font-bold mb-1">{startup.name}</h1>
+                <p className="text-foreground mb-3 -mt-2">{startup.tagline}</p>
+                <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-1.5">
+                    <MapPin className="h-4 w-4" />
+                    <span>{startup.location}</span>
                   </div>
-                  <div className="flex items-center">
-                    <Calendar className="mr-1 h-4 w-4" />
-                    Founded {startup.founded}
+                  <div className="flex items-center gap-1.5">
+                    <Building2 className="h-4 w-4" />
+                    <span>Founded {startup.founded}</span>
                   </div>
-                  <div className="flex items-center">
-                    <Users className="mr-1 h-4 w-4" />
-                    {startup.employees} employees
+                  <div className="flex items-center gap-1.5">
+                    <Users className="h-4 w-4" />
+                    <span>{startup.employees} employees</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Tag className="h-4 w-4" />
+                    <span>{startup.industry}</span>
                   </div>
                 </div>
               </div>
-              <div className="mt-4 md:mt-0">
+              <div className="flex items-center gap-2 mt-4 md:mt-0 flex-shrink-0">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setIsBookmarked(!isBookmarked)}
+                  className={`border border-primary shadow-sm ${isBookmarked ? "bg-primary text-primary-foreground" : ""}`}
+                >
+                  <Bookmark className={`mr-2 h-4 w-4 ${isBookmarked ? "fill-current" : ""}`} />
+                  {isBookmarked ? "Bookmarked" : "Bookmark"}
+                </Button>
                 <Button onClick={() => setShowShareAgreement(true)}>
+                  <MessageCircle className="mr-2 h-4 w-4" />
                   Contact
-                  <Mail className="ml-2 h-4 w-4" />
                 </Button>
               </div>
             </div>

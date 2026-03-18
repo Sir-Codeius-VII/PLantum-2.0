@@ -899,15 +899,20 @@ export default function StartupsPage() {
     if (trendingCheckbox) trendingCheckbox.checked = false
   }
 
-  // Track startup views and navigate to profile
+  // Track startup views and open dialog
   const handleViewStartup = (startup) => {
     setSelectedStartup(startup)
     setAppUserMetrics((prev) => ({
       ...prev,
       startupViews: [...prev.startupViews.filter((s) => s.id !== startup.id), startup],
     }))
-    // Navigate to startup profile using Next.js router
+    // Dialog will open, navigation removed to prevent immediate page change
+  }
+
+  // Navigate to full startup profile page
+  const handleViewFullProfile = (startup) => {
     router.push(`/startup/${startup.id}`)
+    setSelectedStartup(null) // Close dialog when navigating
   }
 
   // Toggle bookmark
@@ -1830,6 +1835,10 @@ export default function StartupsPage() {
                           <Bookmark className="mr-2 h-4 w-4" />
                           {bookmarkedStartups.some((s) => s.id === selectedStartup.id) ? "Bookmarked" : "Bookmark"}
                         </Button>
+                        <Button onClick={() => handleViewFullProfile(selectedStartup)}>
+                          <ExternalLink className="mr-2 h-4 w-4" />
+                          View Full Profile
+                        </Button>
                         <Button>
                           <MessageCircle className="mr-2 h-4 w-4" />
                           Contact
@@ -1837,43 +1846,10 @@ export default function StartupsPage() {
                       </div>
                     </div>
 
-                    <Tabs defaultValue="overview">
-                      <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0">
-                        <TabsTrigger
-                          value="overview"
-                          className="rounded-none border-b-2 border-transparent px-4 py-2 data-[state=active]:border-primary"
-                        >
-                          Overview
-                        </TabsTrigger>
-                        <TabsTrigger
-                          value="team"
-                          className="rounded-none border-b-2 border-transparent px-4 py-2 data-[state=active]:border-primary"
-                        >
-                          Team
-                        </TabsTrigger>
-                        <TabsTrigger
-                          value="funding"
-                          className="rounded-none border-b-2 border-transparent px-4 py-2 data-[state=active]:border-primary"
-                        >
-                          Funding
-                        </TabsTrigger>
-                        <TabsTrigger
-                          value="traction"
-                          className="rounded-none border-b-2 border-transparent px-4 py-2 data-[state=active]:border-primary"
-                        >
-                          Traction
-                        </TabsTrigger>
-                        <TabsTrigger
-                          value="media"
-                          className="rounded-none border-b-2 border-transparent px-4 py-2 data-[state=active]:border-primary"
-                        >
-                          Media
-                        </TabsTrigger>
-                      </TabsList>
-
-                      <TabsContent value="overview" className="pt-4">
-                        <div className="space-y-4">
-                          <h3 className="text-lg font-medium">About {selectedStartup.name}</h3>
+                    <div className="pt-4">
+                      <h2 className="text-xl font-semibold text-center mb-6 underline">Overview</h2>
+                      <div className="space-y-4">
+                        <h3 className="text-lg font-medium">About {selectedStartup.name}</h3>
                           <p>{selectedStartup.description}</p>
 
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
@@ -1932,142 +1908,7 @@ export default function StartupsPage() {
                             </div>
                           </div>
                         </div>
-                      </TabsContent>
-
-                      <TabsContent value="team" className="pt-4">
-                        <div className="space-y-6">
-                          <h3 className="text-lg font-medium">Leadership Team</h3>
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            {selectedStartup.team.map((member, index) => (
-                              <Card key={index}>
-                                <CardContent className="p-6 text-center">
-                                  <Avatar className="h-20 w-20 mx-auto mb-4">
-                                    <AvatarImage src={member.image} alt={member.name} />
-                                    <AvatarFallback>
-                                      {member.name
-                                        .split(" ")
-                                        .map((n) => n[0])
-                                        .join("")}
-                                    </AvatarFallback>
-                                  </Avatar>
-                                  <h4 className="font-semibold">{member.name}</h4>
-                                  <p className="text-sm text-muted-foreground">{member.role}</p>
-                                  <div className="flex justify-center gap-2 mt-4">
-                                    <Button variant="ghost" size="sm" className="h-8 w-8 rounded-full p-0">
-                                      <MailIcon className="h-4 w-4" />
-                                    </Button>
-                                    <Button variant="ghost" size="sm" className="h-8 w-8 rounded-full p-0">
-                                      <NextLink className="h-4 w-4" />
-                                    </Button>
-                                  </div>
-                                </CardContent>
-                              </Card>
-                            ))}
-                          </div>
-                        </div>
-                      </TabsContent>
-
-                      <TabsContent value="funding" className="pt-4">
-                        <div className="space-y-6">
-                          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                            <div>
-                              <h3 className="text-lg font-medium">Funding History</h3>
-                              <p className="text-muted-foreground">Total raised: {selectedStartup.funding.total}</p>
-                            </div>
-                            <Badge className="bg-primary text-lg h-8">{selectedStartup.stage}</Badge>
-                          </div>
-
-                          <Card>
-                            <CardHeader>
-                              <CardTitle>Current Funding Round</CardTitle>
-                              <CardDescription>
-                                {selectedStartup.funding.seeking} at {selectedStartup.funding.valuation} valuation
-                              </CardDescription>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                              <div className="space-y-2">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-sm font-medium">{selectedStartup.funding.lastRound}</span>
-                                  <span className="text-sm text-muted-foreground">
-                                    {selectedStartup.funding.lastRoundDate}
-                                  </span>
-                                </div>
-                              </div>
-
-                              <div className="space-y-2">
-                                <h4 className="font-medium">Investors</h4>
-                                <div className="flex flex-wrap gap-2">
-                                  {selectedStartup.funding.investors.map((investor, index) => (
-                                    <Badge key={index} variant="secondary">
-                                      {investor}
-                                    </Badge>
-                                  ))}
-                                </div>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        </div>
-                      </TabsContent>
-
-                      <TabsContent value="traction" className="pt-4">
-                        <div className="space-y-6">
-                          <h3 className="text-lg font-medium">Traction & Metrics</h3>
-
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            {Object.entries(selectedStartup.traction).map(([key, value]) => (
-                              <Card key={key}>
-                                <CardContent className="p-4 text-center">
-                                  <h4 className="text-sm text-muted-foreground capitalize">
-                                    {key.replace(/([A-Z])/g, " $1").trim()}
-                                  </h4>
-                                  <div className="text-xl font-bold">{value}</div>
-                                </CardContent>
-                              </Card>
-                            ))}
-                          </div>
-
-                          <Card>
-                            <CardHeader>
-                              <CardTitle>Growth Metrics</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                              <div className="h-[200px] flex items-center justify-center bg-muted/20 rounded-md">
-                                <PieChart className="h-8 w-8 text-muted-foreground" />
-                                <span className="ml-2 text-muted-foreground">Growth chart visualization</span>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        </div>
-                      </TabsContent>
-
-                      <TabsContent value="media" className="pt-4">
-                        <div className="space-y-6">
-                          <h3 className="text-lg font-medium">Media Gallery</h3>
-
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            {selectedStartup.media.gallery.map((image, index) => (
-                              <div key={index} className="relative h-48 rounded-md overflow-hidden">
-                                <Image
-                                  src={image || "/placeholder.svg"}
-                                  alt={`${selectedStartup.name} gallery image ${index + 1}`}
-                                  fill
-                                  className="object-cover"
-                                />
-                              </div>
-                            ))}
-                          </div>
-
-                          {selectedStartup.media.video && (
-                            <div className="mt-6">
-                              <h3 className="text-lg font-medium mb-4">Company Video</h3>
-                              <div className="relative h-[300px] rounded-md overflow-hidden bg-muted/20 flex items-center justify-center">
-                                <Play className="h-12 w-12 text-muted-foreground" />
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </TabsContent>
-                    </Tabs>
+                    </div>
                   </div>
 
                   <DialogFooter className="flex-col sm:flex-row gap-2">

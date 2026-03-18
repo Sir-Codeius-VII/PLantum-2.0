@@ -123,13 +123,14 @@ export function WebVitals() {
   React.useEffect(() => {
     if (typeof window === 'undefined') return
 
-    // Import web-vitals dynamically
-    import('web-vitals').then(({ getCLS, getFID, getFCP, getLCP, getTTFB }) => {
-      getCLS(console.log)
-      getFID(console.log)
-      getFCP(console.log)
-      getLCP(console.log)
-      getTTFB(console.log)
+    import('web-vitals').then((mod) => {
+      const { onCLS, onFCP, onLCP, onTTFB, onINP, onFID } = mod as any
+      if (typeof onCLS === 'function') onCLS(console.log)
+      if (typeof onFCP === 'function') onFCP(console.log)
+      if (typeof onLCP === 'function') onLCP(console.log)
+      if (typeof onTTFB === 'function') onTTFB(console.log)
+      if (typeof onINP === 'function') onINP(console.log)
+      else if (typeof onFID === 'function') onFID(console.log)
     })
   }, [])
 

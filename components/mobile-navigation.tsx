@@ -13,7 +13,8 @@ import {
   MessageSquare, 
   Bell,
   User,
-  Settings
+  Settings,
+  LogIn
 } from "lucide-react"
 
 const navigation = [
@@ -90,6 +91,15 @@ export function MobileNavigation() {
               </MobileMenuButton>
             )
           })}
+          <MobileMenuButton
+            asChild
+            className="flex items-center gap-3 text-primary hover:text-primary/90"
+          >
+            <Link href="/auth/signin">
+              <LogIn className="h-5 w-5" />
+              Sign In
+            </Link>
+          </MobileMenuButton>
         </div>
       </MobileNav>
     </div>

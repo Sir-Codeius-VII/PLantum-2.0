@@ -22,7 +22,7 @@ const securityHeaders = {
     "default-src 'self'",
     "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // Next.js requires unsafe-inline and unsafe-eval
     "style-src 'self' 'unsafe-inline'", // Tailwind CSS requires unsafe-inline
-    "img-src 'self' data: https:",
+    "img-src 'self' data: https: blob:", // Allow blob URLs for image previews
     "font-src 'self' data:",
     "connect-src 'self' https://*.supabase.co https://*.supabase.io",
     "frame-ancestors 'none'",
